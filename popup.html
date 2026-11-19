@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Snap Web Assistant</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { width: 310px; margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #16181c; color: #e8e8e8; }
+    header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+    .logo { width: 28px; height: 28px; border-radius: 7px; background: #fffc00; display: grid; place-items: center; font-size: 15px; }
+    h1 { font-size: 15px; margin: 0; font-weight: 600; }
+    .ver { margin-left: auto; font-size: 11px; color: #8b8f94; }
+    main { padding: 2px 16px 12px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid #26282c; }
+    .row:last-of-type { border-bottom: 0; }
+    .lbl { font-size: 13px; font-weight: 500; }
+    .sub { font-size: 11px; color: #9aa0a6; margin-top: 2px; max-width: 200px; line-height: 1.35; }
+    .switch { position: relative; width: 40px; height: 22px; flex: none; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .knob { position: absolute; inset: 0; background: #34373c; border-radius: 99px; transition: background .18s; cursor: pointer; }
+    .knob::before { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; top: 3px; left: 3px; background: #fff; transition: transform .18s; }
+    input:checked + .knob { background: #2e7d32; }
+    input:checked + .knob::before { transform: translateX(18px); }
+    .stat { padding: 10px 0 4px; font-size: 12px; color: #b9bec4; display: flex; justify-content: space-between; align-items: center; }
+    .reset { background: #26282c; color: #c7c9cc; border: 0; border-radius: 6px; padding: 4px 9px; font-size: 11px; cursor: pointer; }
+    .reset:hover { background: #2e3136; }
+    .warn { margin: 8px 0 12px; padding: 10px 11px; font-size: 11.5px; line-height: 1.45; background: #26221a; border: 1px solid #4a3f1d; color: #e6d9a8; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">&#128064;</div>
+    <h1>Snap Web Assistant</h1>
+    <span class="ver" id="ver"></span>
+  </header>
+  <main>
+    <div class="row">
+      <div>
+        <div class="lbl">Screenshot bypass</div>
+        <div class="sub">Page keeps rendering normally when it loses focus (no hide, no blur).</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="bypass"><span class="knob"></span></label>
+    </div>
+    <div class="row">
+      <div>
+        <div class="lbl">Media saving</div>
+        <div class="sub">Double-click any image or video to download it.</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="save"><span class="knob"></span></label>
+    </div>
+    <div class="row">
+      <div>
+        <div class="lbl">Auto-save media</div>
+        <div class="sub">Automatically save videos and larger images as they load.</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="auto"><span class="knob"></span></label>
+    </div>
+    <div class="stat">
+      <span id="count">Downloads: 0</span>
+      <button class="reset" id="reset">Reset</button>
+    </div>
+    <p class="warn">
+      &#9888;&#65039; This tool is for personal/educational use only. Respect the
+      privacy of others. Saving or sharing private content without consent may
+      violate Snapchat's Terms of Service and local law. All processing happens
+      locally in your browser &mdash; nothing is uploaded anywhere.
+    </p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
