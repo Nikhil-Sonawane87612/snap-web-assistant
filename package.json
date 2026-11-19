@@ -1,0 +1,16 @@
+{
+  "name": "snap-web-assistant",
+  "version": "1.0.0",
+  "description": "Chrome MV3 extension for web.snapchat.com: screenshot-bypass + local-only media saver.",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "check": "node --check background.js && node --check content.js && node --check bridge.js && node --check popup.js",
+    "validate:manifest": "node -e \"JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest.json OK')\"",
+    "test": "node --test tests/*.test.mjs",
+    "lint": "npm run check && npm run validate:manifest && npm run test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

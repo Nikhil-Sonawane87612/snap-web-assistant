@@ -1,0 +1,42 @@
+# Archives & build artifacts
+*.zip
+*.tar.gz
+*.crx
+_metadata/
+dist/
+
+# Tooling and editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Node
+node_modules/
+package-lock.json
+
+# Temp & log files
+*.tmp
+*.bak
+*.log
+
+# Local tool state (never shipped)
+.hermes/
+.mimosa/
+.opencode/
+
+# CRX signing key (private - never commit)
+keys/
+
+# Local automation/session residue
+scripts/hermes-*
+scripts/tg-*

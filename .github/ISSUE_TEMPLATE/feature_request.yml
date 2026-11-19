@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Constraints
+      options:
+        - label: This does not require network requests.
+          required: true
+        - label: This does not store data outside chrome.storage.local.
