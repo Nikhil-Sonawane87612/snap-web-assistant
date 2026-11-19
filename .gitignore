@@ -34,6 +34,17 @@ package-lock.json
 .mimosa/
 .opencode/
 
+# Source code is kept locally; this repo publishes documentation only.
+*.js
+*.html
+*.json
+*.ps1
+*.mjs
+*.cjs
+scripts/
+tests/
+icons/
+
 # CRX signing key (private - never commit)
 keys/
 
