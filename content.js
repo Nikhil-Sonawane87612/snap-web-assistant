@@ -474,11 +474,14 @@
   // ---------------------------------------------------------------------
 
   const PHONE_GATE_RE =
-    /view\s+(?:it\s+)?on\s+(?:your\s+)?(?:phone|mobile)|open\s+(?:it\s+)?(?:in\s+(?:the\s+)?app|on\s+(?:your\s+)?phone)|open\s+the\s+mobile\s+app(?:\s+to\s+view)?|view\s+in\s+snapchat|available\s+(?:only\s+)?on\s+(?:mobile|phone)|only\s+on\s+(?:mobile|phone|snapchat)|open\s+on\s+(?:phone|mobile)|scan\s+to\s+view|view\s+on\s+snapchat/i;
+    /view\s+(?:it\s+)?on\s+(?:your\s+)?(?:phone|mobile)|open\s+(?:it\s+)?(?:in\s+(?:the\s+)?app|on\s+(?:your\s+)?phone)|open\s+the\s+mobile\s+app(?:\s+to\s+view)?|view\s+in\s+snapchat|available\s+(?:only\s+)?on\s+(?:mobile|phone)|only\s+on\s+(?:mobile|phone|snapchat)|open\s+on\s+(?:phone|mobile)|scan\s+to\s+view|view\s+on\s+snapchat|click\s+to\s+view/i;
 
   let phoneViewerRoot = null, phoneViewerBox = null, phoneViewerMedia = null;
   let phoneViewerInfo = null, phoneViewerObserver = null, phoneViewerUrl = '';
-  let phoneScanTimer = 0, lastPhoneScan = 0;
+  let phoneScanTimer = 0;
+  const gateMap = new Map();            // card element -> { url, type }
+  const claimedBlobs = new Set();       // blob URLs already assigned to a card
+  const injectedButtons = new Set();    // buttons we added, for cleanup
 
   function mountPhoneViewer() {
     if (phoneViewerRoot && phoneViewerRoot.isConnected) return;
@@ -601,22 +604,85 @@
     return '';
   }
 
-  function recentMediaBlob() {
-    const cutoff = Date.now() - 15000;
+  function claimMediaForGate() {
+    // Claim the newest unclaimed image/video blob so each snap card gets its
+    // own media instead of every card fighting over the same blob.
+    const cutoff = Date.now() - 60000;
     let best = '', bestT = 0;
     for (const [url, e] of blobStore) {
-      if (e.t < cutoff || !/^(image|video)\//.test(e.type || '')) continue;
+      if (e.t < cutoff || claimedBlobs.has(url)) continue;
+      if (!/^(image|video)\//.test(e.type || '')) continue;
       if (e.t > bestT) { bestT = e.t; best = url; }
     }
+    if (best) claimedBlobs.add(best);
     return best;
+  }
+
+  function gateCardFor(gateEl) {
+    // Walk up to the card that holds both the title and the gate text.
+    let el = gateEl;
+    for (let i = 0; i < 5 && el && el !== document.body; i++, el = el.parentElement) {
+      const t = el.textContent || '';
+      if (t.length < 300 && /new\s+snap/i.test(t) && PHONE_GATE_RE.test(t)) return el;
+    }
+    return gateEl.parentElement || gateEl;
+  }
+
+  function showNoMedia() {
+    mountPhoneViewer();
+    if (!phoneViewerBox) return;
+    phoneViewerUrl = '';
+    phoneViewerMedia.replaceChildren();
+    phoneViewerInfo.textContent =
+      'Snapchat did not load a viewable media blob for this snap. The media may not be sent to the web app.';
+    phoneViewerInfo.style.display = 'block';
+    phoneViewerBox.classList.add('show');
+  }
+
+  function attachViewButton(card, info) {
+    gateMap.set(card, info);
+    if (card.querySelector(':scope > button[data-swa-view]')) return;
+
+    const btn = document.createElement('button');
+    btn.setAttribute('data-swa-view', '');
+    btn.textContent = 'View in browser';
+    const imp = (k, v) => btn.style.setProperty(k, v, 'important');
+    imp('display', 'inline-flex');
+    imp('align-items', 'center');
+    imp('margin-top', '6px');
+    imp('padding', '4px 9px');
+    imp('background', '#fffc00');
+    imp('color', '#141414');
+    imp('border', '0');
+    imp('border-radius', '6px');
+    imp('font', '600 11px system-ui, sans-serif');
+    imp('cursor', 'pointer');
+    imp('position', 'relative');
+    imp('z-index', '2147483000');
+    imp('visibility', 'visible');
+    imp('opacity', '1');
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const data = gateMap.get(card) || info;
+      let url = data.url;
+      if (!url || !blobStore.has(url)) {
+        url = claimMediaForGate();
+        const entry = blobStore.get(url);
+        data.url = url;
+        data.type = entry ? entry.type : '';
+      }
+      if (url && blobStore.has(url)) showPhoneViewer(url, data.type);
+      else showNoMedia();
+    });
+
+    card.appendChild(btn);
+    injectedButtons.add(btn);
   }
 
   function scanPhoneGate() {
     if (!state.showPhoneSnaps) return;
-    const now = Date.now();
-    if (now - lastPhoneScan < 1000) return;
-    lastPhoneScan = now;
-
     const root = document.body || document.documentElement;
     if (!root) return;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -626,24 +692,13 @@
       if (!txt || !PHONE_GATE_RE.test(txt)) continue;
       const gateEl = textNode.parentElement;
       if (!gateEl || (phoneViewerRoot && phoneViewerRoot.contains(gateEl))) continue;
+      const card = gateCardFor(gateEl);
+      if (!card || gateMap.has(card)) continue;
 
-      let url = mediaNearGate(gateEl);
-      if (!url) url = recentMediaBlob();
+      let url = mediaNearGate(card);
+      if (!url || claimedBlobs.has(url)) url = claimMediaForGate();
       const entry = blobStore.get(url);
-      if (url && entry) {
-        if (url !== phoneViewerUrl || !phoneViewerBox.classList.contains('show')) {
-          showPhoneViewer(url, entry.type);
-        }
-      } else {
-        mountPhoneViewer();
-        if (phoneViewerBox) {
-          phoneViewerInfo.textContent =
-            'Snapchat did not load a viewable media blob for this snap. The media may not be sent to the web app.';
-          phoneViewerInfo.style.display = 'block';
-          phoneViewerBox.classList.add('show');
-        }
-      }
-      return; // one snap at a time
+      attachViewButton(card, { url: entry ? url : '', type: entry ? entry.type : '' });
     }
   }
 
@@ -663,8 +718,13 @@
         phoneViewerObserver.observe(document.documentElement || document, { childList: true, subtree: true });
       }
       if (!phoneScanTimer) phoneScanTimer = setInterval(scanPhoneGate, 1500);
+      scanPhoneGate();
     } else {
       hidePhoneViewer();
+      for (const btn of injectedButtons) { try { btn.remove(); } catch { /* ignore */ } }
+      injectedButtons.clear();
+      gateMap.clear();
+      claimedBlobs.clear();
       if (phoneViewerObserver) { phoneViewerObserver.disconnect(); phoneViewerObserver = null; }
       if (phoneScanTimer) { clearInterval(phoneScanTimer); phoneScanTimer = 0; }
     }

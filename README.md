@@ -117,26 +117,23 @@ flow.
 
 ## View-on-phone snaps
 
-Some snaps show a **"New Snap — Open the mobile app to view"** card (or a
-similar "view in Snapchat" prompt) in Snapchat Web. With **View-on-phone
-snaps** enabled (default on), the extension detects that gating UI and renders
-the underlying media in a local overlay so you can watch it in the browser —
-with a **Save** button that reuses the same download path as double-click
-saving.
+Some snaps show a **"New Snap — Open the mobile app to view"** card (or
+"Click to view") in Snapchat Web. With **View-on-phone snaps** enabled
+(default on), the extension adds a small **"View in browser"** button to each
+such card. Clicking that specific card's button opens its media in a local
+overlay — nothing opens automatically.
 
-- Detection is text-based (`open the mobile app to view`, `view on phone`,
-  `open in app`, `view in Snapchat`, `scan to view`, etc.) plus a DOM scan near
-  the gate for a `blob:` media URL.
+- Detection is text-based (`open the mobile app to view`, `click to view`,
+  `view on phone`, `open in app`, `view in Snapchat`, etc.).
+- Each gate card is paired with its own media blob, so multiple snaps in a
+  chat don't all fight over the same stream.
 - Both `Blob` URLs and `MediaSource` URLs are captured. Streamed snaps can be
   viewed but not saved as a file (the Save button explains this).
-- If the DOM doesn't expose a media element, it falls back to the most recent
-  image/video blob captured in the last 15 seconds.
-- **Best-effort:** if Snapchat never sends the media to the web app (some snap
-  types genuinely aren't delivered to the browser), no blob exists to render.
-  The overlay then explains that instead of showing a broken player.
+- **Best-effort:** if Snapchat never sends the media to the web app, the
+  overlay explains that instead of showing a broken player.
 - The overlay lives in a **closed Shadow DOM**, so page CSS can't restyle or
-  hide it. Close it with the button, the backdrop, or by toggling the feature
-  off in the popup.
+  hide it. Close it with the button or the backdrop. Turning the popup toggle
+  off removes all injected buttons.
 
 ## Testing checklist
 
@@ -149,8 +146,8 @@ saving.
 - [x] No console errors related to CSP or permissions (MAIN-world static
       content scripts are not subject to the page's CSP);
       bridge/background requests respond normally.
-- [ ] A snap that shows "open on phone" renders in the browser overlay when a
-      media blob is available.
+- [ ] A "New Snap / Click to view" card gets a "View in browser" button, and
+      clicking it opens that specific snap in the overlay.
 
 ## Limitations
 

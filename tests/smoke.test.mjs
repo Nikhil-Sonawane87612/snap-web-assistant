@@ -29,6 +29,7 @@ test('showPhoneSnaps setting is wired across all contexts', () => {
 test('gate matcher covers the mobile-app prompt', () => {
   const src = readFileSync('content.js', 'utf8');
   assert.match(src, /open\\s\+the\\s\+mobile\\s\+app/);
+  assert.match(src, /click\\s\+to\\s\+view/);
 });
 
 test('no network APIs in extension scripts', () => {

@@ -6,12 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- "View-on-phone snaps" toggle: renders snaps gated behind an
-  "open the mobile app to view" / "open on phone" prompt in a local browser
-  overlay (closed Shadow DOM), with a Save button reusing the existing
-  download path. Falls back to the most recent captured media blob when the
-  DOM doesn't expose one. Also captures `MediaSource` URLs for streamed snaps
-  (viewable but not savable as files).
+- "View-on-phone snaps" toggle: adds a per-snap **"View in browser"** button
+  to cards gated behind "open the mobile app to view" / "click to view".
+  Clicking opens that specific snap in a local overlay (closed Shadow DOM),
+  with a Save button reusing the existing download path. No auto-popup.
+  Each card is paired with its own media blob, and `MediaSource` URLs are
+  captured for streamed snaps (viewable but not savable as files).
 
 ## [1.0.0] - 2026-11-19
 
