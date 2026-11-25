@@ -12,13 +12,14 @@
   try { Object.defineProperty(window, FLAG, { value: true, enumerable: false }); } catch { window[FLAG] = true; }
 
   const CH = 'SNAP_WEB_ASSISTANT_V1';
-  const KEYS = ['bypass', 'saveMedia', 'autoDownload'];
+  const KEYS = ['bypass', 'saveMedia', 'autoDownload', 'showPhoneSnaps'];
 
   // Same defaults as content.js and background.js.
   const normalize = (o) => ({
     bypass: o.bypass !== false,
     saveMedia: o.saveMedia !== false,
     autoDownload: !!o.autoDownload,
+    showPhoneSnaps: o.showPhoneSnaps !== false,
   });
 
   function pushSettings() {

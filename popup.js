@@ -9,6 +9,7 @@ const ROWS = [
   ['bypass', 'bypass'],
   ['save', 'saveMedia'],
   ['auto', 'autoDownload'],
+  ['phone', 'showPhoneSnaps'],
 ];
 
 const $ = (id) => document.getElementById(id);
@@ -30,10 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function refresh() {
-  chrome.storage.local.get(['bypass', 'saveMedia', 'autoDownload', 'savedCount']).then((o) => {
+  chrome.storage.local.get(['bypass', 'saveMedia', 'autoDownload', 'showPhoneSnaps', 'savedCount']).then((o) => {
     $('bypass').checked = o.bypass !== false;
     $('save').checked = o.saveMedia !== false;
     $('auto').checked = !!o.autoDownload;
+    $('phone').checked = o.showPhoneSnaps !== false;
     $('count').textContent = 'Downloads: ' + (o.savedCount || 0);
   }).catch(() => {});
 }

@@ -42,6 +42,7 @@ Expected on-page result: a yellow console banner
 | Toggle shot in the popup | Enables/disables screenshot bypass live |
 | **Double-click** an image or video | Downloads that media (toast confirms) |
 | Popup → "Auto-save media" | Saves videos + images > 128 KB automatically as they load |
+| Popup → "View-on-phone snaps" | Renders "open on phone" snaps in the browser (see below) |
 | Popup counter | Shows how many files were saved since install |
 
 Files land in `Downloads/SnapWeb/` named like
@@ -60,6 +61,7 @@ Persisted in `chrome.storage.local`; pushed live into the page:
 | `bypass` | `true` | Anti-screenshot machinery |
 | `saveMedia` | `true` | Blob capture + double-click saving |
 | `autoDownload` | `false` | Auto-save qualifying media on capture |
+| `showPhoneSnaps` | `true` | Render "view on phone" snaps in-browser |
 | `savedCount` | `0` | Counter (popup "Reset" clears it) |
 
 ## How it works
@@ -113,6 +115,25 @@ flow.
   with `blob:`, sends `SAVE_REQ` → `bridge.js` → `chrome.downloads.download`
   in the service worker; failure falls back to the in-page anchor download.
 
+## View-on-phone snaps
+
+Some snaps are gated behind an "open on phone" / "view in Snapchat" prompt in
+Snapchat Web. With **View-on-phone snaps** enabled (default on), the extension
+detects that gating UI and renders the underlying media in a local overlay so
+you can watch it in the browser — with a **Save** button that reuses the same
+download path as double-click saving.
+
+- Detection is text-based (`view on phone`, `open in app`, `view in Snapchat`,
+  `scan to view`, etc.) plus a DOM scan near the gate for a `blob:` media URL.
+- If the DOM doesn't expose a media element, it falls back to the most recent
+  image/video blob captured in the last 15 seconds.
+- **Best-effort:** if Snapchat never sends the media to the web app (some snap
+  types genuinely aren't delivered to the browser), no blob exists to render.
+  The overlay then explains that instead of showing a broken player.
+- The overlay lives in a **closed Shadow DOM**, so page CSS can't restyle or
+  hide it. Close it with the button, the backdrop, or by toggling the feature
+  off in the popup.
+
 ## Testing checklist
 
 - [x] On `web.snapchat.com`, the page does **not** blur/hide when switching tabs.
@@ -124,6 +145,8 @@ flow.
 - [x] No console errors related to CSP or permissions (MAIN-world static
       content scripts are not subject to the page's CSP);
       bridge/background requests respond normally.
+- [ ] A snap that shows "open on phone" renders in the browser overlay when a
+      media blob is available.
 
 ## Limitations
 

@@ -12,6 +12,7 @@ const DEFAULTS = {
   bypass: true,      // screenshot-bypass mode
   saveMedia: true,   // double-click save + blob capture
   autoDownload: false,
+  showPhoneSnaps: true,
   savedCount: 0,
 };
 

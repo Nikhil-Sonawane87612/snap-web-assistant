@@ -18,6 +18,14 @@ test('extension scripts pass syntax check', async () => {
   }
 });
 
+test('showPhoneSnaps setting is wired across all contexts', () => {
+  for (const f of ['background.js', 'bridge.js', 'content.js', 'popup.js']) {
+    const src = readFileSync(f, 'utf8');
+    assert.match(src, /showPhoneSnaps/, `${f} missing showPhoneSnaps wiring`);
+  }
+  assert.match(readFileSync('popup.html', 'utf8'), /id="phone"/);
+});
+
 test('no network APIs in extension scripts', () => {
   const files = ['background.js', 'content.js', 'bridge.js', 'popup.js'];
   const banned = [/\bfetch\s*\(/, /\bXMLHttpRequest\b/, /\bWebSocket\b/, /\bnavigator\.sendBeacon\b/];

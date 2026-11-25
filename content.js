@@ -60,7 +60,7 @@
   // ---------------------------------------------------------------------
   // 2. State
   // ---------------------------------------------------------------------
-  const state = { bypass: true, saveMedia: true, autoDownload: false };
+  const state = { bypass: true, saveMedia: true, autoDownload: false, showPhoneSnaps: true };
   try {
     Object.defineProperty(window, '__snapWebAssistantDebug', { value: state, enumerable: false });
   } catch { /* ignore */ }
@@ -227,8 +227,10 @@
       state.bypass = m.settings.bypass !== false;
       state.saveMedia = m.settings.saveMedia !== false;
       state.autoDownload = !!m.settings.autoDownload;
+      state.showPhoneSnaps = m.settings.showPhoneSnaps !== false;
       if (was !== state.bypass) applyBypass(state.bypass);
       if (state.bypass) scrubBlurNow();
+      applyPhoneSnapViewer(state.showPhoneSnaps);
 
     } else if (m.type === 'SAVE_RESULT') {
       const p = pending.get(m.id);
@@ -458,8 +460,210 @@
   mountToast();
 
   // ---------------------------------------------------------------------
-  // 9. Boot — apply bypass immediately so page scripts inherit it.
+  // 9. "View on phone" snap viewer
+  //    Snapchat Web gates some snaps behind an "open on phone" prompt. When
+  //    a media blob for such a snap exists, render it locally in an overlay
+  //    so it can be viewed (and saved) in the browser instead.
+  //    Best-effort: if the web app never loads a media blob, we say so.
   // ---------------------------------------------------------------------
+
+  const PHONE_GATE_RE =
+    /view\s+(?:it\s+)?on\s+(?:your\s+)?(?:phone|mobile)|open\s+(?:it\s+)?(?:in\s+(?:the\s+)?app|on\s+(?:your\s+)?phone)|view\s+in\s+snapchat|available\s+(?:only\s+)?on\s+(?:mobile|phone)|only\s+on\s+(?:mobile|phone|snapchat)|open\s+on\s+(?:phone|mobile)|scan\s+to\s+view|view\s+on\s+snapchat/i;
+
+  let phoneViewerRoot = null, phoneViewerBox = null, phoneViewerMedia = null;
+  let phoneViewerInfo = null, phoneViewerObserver = null, phoneViewerUrl = '';
+  let phoneScanTimer = 0, lastPhoneScan = 0;
+
+  function mountPhoneViewer() {
+    if (phoneViewerRoot && phoneViewerRoot.isConnected) return;
+    if (!document.documentElement) return;
+    phoneViewerRoot = document.createElement('div');
+    phoneViewerRoot.dataset.swaPhoneViewer = '';
+    const sh = phoneViewerRoot.attachShadow({ mode: 'closed' });
+    const st = document.createElement('style');
+    st.textContent = `
+      :host{all:initial}
+      .wrap{position:fixed;inset:0;z-index:2147483646;display:none;align-items:center;
+        justify-content:center;background:rgba(0,0,0,.74);font:13px system-ui,sans-serif}
+      .wrap.show{display:flex}
+      .card{position:relative;max-width:min(92vw,540px);max-height:88vh;background:#111318;
+        border:1px solid #30343b;border-radius:14px;padding:14px;box-shadow:0 12px 48px rgba(0,0,0,.6);
+        display:flex;flex-direction:column;gap:10px}
+      .bar{display:flex;align-items:center;gap:8px;color:#e9eaec;flex-wrap:wrap}
+      .tag{font-size:11px;background:#fffc00;color:#191919;padding:2px 7px;border-radius:99px;font-weight:700}
+      .hint{font-size:11px;color:#9aa0a6}
+      button{margin-left:auto;background:#2a2d33;color:#e9eaec;border:0;border-radius:7px;
+        padding:5px 10px;font-size:11px;cursor:pointer}
+      button:hover{background:#353940}
+      .stage{max-width:100%;max-height:72vh;display:flex;align-items:center;justify-content:center}
+      .stage video,.stage img{max-width:100%;max-height:72vh;border-radius:8px;background:#000;object-fit:contain}
+      .empty{color:#b9bec4;padding:18px 8px;text-align:center;line-height:1.5}
+    `;
+    phoneViewerBox = document.createElement('div');
+    phoneViewerBox.className = 'wrap';
+    const card = document.createElement('div');
+    card.className = 'card';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = 'PHONE SNAP';
+    const hint = document.createElement('span');
+    hint.className = 'hint';
+    hint.textContent = 'Shown in browser by Snap Web Assistant';
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', () => {
+      if (!phoneViewerUrl) return;
+      const e = blobStore.get(phoneViewerUrl);
+      requestSave(phoneViewerUrl, makeFilename(e ? e.type : '', 'IMG'));
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', hidePhoneViewer);
+    bar.append(tag, hint, saveBtn, closeBtn);
+
+    phoneViewerMedia = document.createElement('div');
+    phoneViewerMedia.className = 'stage';
+    phoneViewerInfo = document.createElement('div');
+    phoneViewerInfo.className = 'empty';
+    phoneViewerInfo.style.display = 'none';
+
+    card.append(bar, phoneViewerMedia, phoneViewerInfo);
+    phoneViewerBox.appendChild(card);
+    phoneViewerBox.addEventListener('click', (e) => { if (e.target === phoneViewerBox) hidePhoneViewer(); });
+    sh.append(st, phoneViewerBox);
+    document.documentElement.appendChild(phoneViewerRoot);
+  }
+
+  function hidePhoneViewer() {
+    phoneViewerUrl = '';
+    if (phoneViewerBox) {
+      phoneViewerBox.classList.remove('show');
+      phoneViewerMedia.replaceChildren();
+      phoneViewerInfo.style.display = 'none';
+    }
+  }
+
+  function showPhoneViewer(url, mime) {
+    mountPhoneViewer();
+    if (!phoneViewerBox) return;
+    phoneViewerUrl = url;
+    phoneViewerMedia.replaceChildren();
+    phoneViewerInfo.style.display = 'none';
+    let node;
+    if (String(mime || '').startsWith('video/')) {
+      node = document.createElement('video');
+      node.src = url;
+      node.controls = true;
+      node.muted = true;       // required for programmatic autoplay
+      node.playsInline = true;
+      try { const p = node.play(); if (p && p.catch) p.catch(() => {}); } catch { /* ignore */ }
+    } else {
+      node = document.createElement('img');
+      node.src = url;
+    }
+    phoneViewerMedia.appendChild(node);
+    phoneViewerBox.classList.add('show');
+  }
+
+  function resolveMediaUrl(el) {
+    if (!(el instanceof Element)) return '';
+    if (el instanceof HTMLVideoElement || el instanceof HTMLImageElement) {
+      const u = el.currentSrc || el.src || '';
+      return String(u).split('#')[0].startsWith('blob:') ? String(u).split('#')[0] : '';
+    }
+    const bg = getComputedStyle(el).backgroundImage || '';
+    const m = /url\(["']?(blob:[^"')]+)["']?\)/.exec(bg);
+    return m ? m[1] : '';
+  }
+
+  function mediaNearGate(gateEl) {
+    let el = gateEl;
+    for (let depth = 0; el && depth < 5; depth++, el = el.parentElement) {
+      const container = el.parentElement || el;
+      const nodes = container.querySelectorAll('video, img, [style*="blob:"]');
+      for (const n of nodes) {
+        const url = resolveMediaUrl(n);
+        if (url && blobStore.has(url)) return url;
+      }
+    }
+    return '';
+  }
+
+  function recentMediaBlob() {
+    const cutoff = Date.now() - 15000;
+    let best = '', bestT = 0;
+    for (const [url, e] of blobStore) {
+      if (e.t < cutoff || !/^(image|video)\//.test(e.type || '')) continue;
+      if (e.t > bestT) { bestT = e.t; best = url; }
+    }
+    return best;
+  }
+
+  function scanPhoneGate() {
+    if (!state.showPhoneSnaps) return;
+    const now = Date.now();
+    if (now - lastPhoneScan < 1000) return;
+    lastPhoneScan = now;
+
+    const root = document.body || document.documentElement;
+    if (!root) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let textNode;
+    while ((textNode = walker.nextNode())) {
+      const txt = (textNode.nodeValue || '').trim();
+      if (!txt || !PHONE_GATE_RE.test(txt)) continue;
+      const gateEl = textNode.parentElement;
+      if (!gateEl || (phoneViewerRoot && phoneViewerRoot.contains(gateEl))) continue;
+
+      let url = mediaNearGate(gateEl);
+      if (!url) url = recentMediaBlob();
+      const entry = blobStore.get(url);
+      if (url && entry) {
+        if (url !== phoneViewerUrl || !phoneViewerBox.classList.contains('show')) {
+          showPhoneViewer(url, entry.type);
+        }
+      } else {
+        mountPhoneViewer();
+        if (phoneViewerBox) {
+          phoneViewerInfo.textContent =
+            'Snapchat did not load a viewable media blob for this snap. The media may not be sent to the web app.';
+          phoneViewerInfo.style.display = 'block';
+          phoneViewerBox.classList.add('show');
+        }
+      }
+      return; // one snap at a time
+    }
+  }
+
+  function applyPhoneSnapViewer(on) {
+    if (on) {
+      mountPhoneViewer();
+      if (!phoneViewerObserver) {
+        phoneViewerObserver = new MutationObserver((muts) => {
+          for (const m of muts) {
+            for (const n of m.addedNodes) {
+              const text = n.nodeType === Node.TEXT_NODE ? (n.nodeValue || '') :
+                (n.nodeType === Node.ELEMENT_NODE ? (n.textContent || '') : '');
+              if (text && PHONE_GATE_RE.test(text)) { scanPhoneGate(); return; }
+            }
+          }
+        });
+        phoneViewerObserver.observe(document.documentElement || document, { childList: true, subtree: true });
+      }
+      if (!phoneScanTimer) phoneScanTimer = setInterval(scanPhoneGate, 1500);
+    } else {
+      hidePhoneViewer();
+      if (phoneViewerObserver) { phoneViewerObserver.disconnect(); phoneViewerObserver = null; }
+      if (phoneScanTimer) { clearInterval(phoneScanTimer); phoneScanTimer = 0; }
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // 10. Boot — apply bypass immediately so page scripts inherit it.
+  // ---------------------------------------------------------------------
+  applyPhoneSnapViewer(state.showPhoneSnaps);
   applyBypass(true);
   console.info(
     '%c' + TAG + ' loaded (MAIN world, document_start) — screenshot bypass ON',
