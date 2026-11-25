@@ -88,6 +88,12 @@
         blobStore.set(url, { blob: obj, type: obj.type || '', size: obj.size || 0, t: Date.now() });
         if (blobStore.size > MAX_BLOBS) pruneBlobStore();
         if (state.saveMedia && state.autoDownload) maybeAutoSave(url, obj);
+      } else if (typeof MediaSource !== 'undefined' && obj instanceof MediaSource) {
+        // Some "open on phone" snaps are streamed via MediaSource rather than
+        // delivered as a single Blob. Keep the blob: URL so the viewer can
+        // attach it to a <video>; saving needs a Blob, so mark blob as null.
+        blobStore.set(url, { blob: null, type: 'video/mp4', size: 0, t: Date.now() });
+        if (blobStore.size > MAX_BLOBS) pruneBlobStore();
       }
     } catch { /* ignore */ }
     return url;
@@ -468,7 +474,7 @@
   // ---------------------------------------------------------------------
 
   const PHONE_GATE_RE =
-    /view\s+(?:it\s+)?on\s+(?:your\s+)?(?:phone|mobile)|open\s+(?:it\s+)?(?:in\s+(?:the\s+)?app|on\s+(?:your\s+)?phone)|view\s+in\s+snapchat|available\s+(?:only\s+)?on\s+(?:mobile|phone)|only\s+on\s+(?:mobile|phone|snapchat)|open\s+on\s+(?:phone|mobile)|scan\s+to\s+view|view\s+on\s+snapchat/i;
+    /view\s+(?:it\s+)?on\s+(?:your\s+)?(?:phone|mobile)|open\s+(?:it\s+)?(?:in\s+(?:the\s+)?app|on\s+(?:your\s+)?phone)|open\s+the\s+mobile\s+app(?:\s+to\s+view)?|view\s+in\s+snapchat|available\s+(?:only\s+)?on\s+(?:mobile|phone)|only\s+on\s+(?:mobile|phone|snapchat)|open\s+on\s+(?:phone|mobile)|scan\s+to\s+view|view\s+on\s+snapchat/i;
 
   let phoneViewerRoot = null, phoneViewerBox = null, phoneViewerMedia = null;
   let phoneViewerInfo = null, phoneViewerObserver = null, phoneViewerUrl = '';
@@ -516,7 +522,11 @@
     saveBtn.addEventListener('click', () => {
       if (!phoneViewerUrl) return;
       const e = blobStore.get(phoneViewerUrl);
-      requestSave(phoneViewerUrl, makeFilename(e ? e.type : '', 'IMG'));
+      if (!e || !e.blob) {
+        toast('This snap is streamed, not a stored file — it cannot be saved.');
+        return;
+      }
+      requestSave(phoneViewerUrl, makeFilename(e.type || '', 'IMG'));
     });
     const closeBtn = document.createElement('button');
     closeBtn.textContent = 'Close';

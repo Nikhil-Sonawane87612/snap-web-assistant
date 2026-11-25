@@ -26,6 +26,11 @@ test('showPhoneSnaps setting is wired across all contexts', () => {
   assert.match(readFileSync('popup.html', 'utf8'), /id="phone"/);
 });
 
+test('gate matcher covers the mobile-app prompt', () => {
+  const src = readFileSync('content.js', 'utf8');
+  assert.match(src, /open\\s\+the\\s\+mobile\\s\+app/);
+});
+
 test('no network APIs in extension scripts', () => {
   const files = ['background.js', 'content.js', 'bridge.js', 'popup.js'];
   const banned = [/\bfetch\s*\(/, /\bXMLHttpRequest\b/, /\bWebSocket\b/, /\bnavigator\.sendBeacon\b/];

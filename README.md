@@ -117,14 +117,18 @@ flow.
 
 ## View-on-phone snaps
 
-Some snaps are gated behind an "open on phone" / "view in Snapchat" prompt in
-Snapchat Web. With **View-on-phone snaps** enabled (default on), the extension
-detects that gating UI and renders the underlying media in a local overlay so
-you can watch it in the browser — with a **Save** button that reuses the same
-download path as double-click saving.
+Some snaps show a **"New Snap — Open the mobile app to view"** card (or a
+similar "view in Snapchat" prompt) in Snapchat Web. With **View-on-phone
+snaps** enabled (default on), the extension detects that gating UI and renders
+the underlying media in a local overlay so you can watch it in the browser —
+with a **Save** button that reuses the same download path as double-click
+saving.
 
-- Detection is text-based (`view on phone`, `open in app`, `view in Snapchat`,
-  `scan to view`, etc.) plus a DOM scan near the gate for a `blob:` media URL.
+- Detection is text-based (`open the mobile app to view`, `view on phone`,
+  `open in app`, `view in Snapchat`, `scan to view`, etc.) plus a DOM scan near
+  the gate for a `blob:` media URL.
+- Both `Blob` URLs and `MediaSource` URLs are captured. Streamed snaps can be
+  viewed but not saved as a file (the Save button explains this).
 - If the DOM doesn't expose a media element, it falls back to the most recent
   image/video blob captured in the last 15 seconds.
 - **Best-effort:** if Snapchat never sends the media to the web app (some snap
